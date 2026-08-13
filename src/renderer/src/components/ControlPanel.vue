@@ -73,9 +73,8 @@ function onOpacityInput(event: Event): void {
   window.readerAPI.setWindowOpacity(value / 100)
 }
 
-async function onToggleChapter(): Promise<void> {
+function onToggleChapter(): void {
   emit('update:show-chapter', !props.showChapter)
-  await Promise.resolve()
 }
 
 /** 退出程序：先持久化当前阅读进度，再通知主进程退出 */
@@ -83,10 +82,21 @@ function onQuit(): void {
   store.persistProgress()
   window.readerAPI.quitApp()
 }
+
+/**
+ * 控制条悬停时临时关闭整窗穿透：forward 模式下正文点击会穿透到下层应用，
+ * 但控制条按钮需始终可点。鼠标进入控制条即恢复本窗可交互，离开后由主进程归位穿透状态。
+ */
+function onBarEnter(): void {
+  window.readerAPI.setPassthroughHover(true)
+}
+function onBarLeave(): void {
+  window.readerAPI.setPassthroughHover(false)
+}
 </script>
 
 <template>
-  <header class="control-bar" :class="{ active: panelOpen }">
+  <header class="control-bar" :class="{ active: panelOpen }" @mouseenter="onBarEnter" @mouseleave="onBarLeave">
     <div class="bar">
       <span v-if="store.book" class="book-title" :title="store.book.filePath">
         {{ store.book.title }}

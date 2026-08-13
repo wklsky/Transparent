@@ -102,10 +102,17 @@ body {
   letter-spacing: 0.4em;
 }
 
-/* ---------- 鼠标穿透模式：正文穿透，控制条仍可交互 ---------- */
+/* ---------- 鼠标穿透模式 ---------- */
+/* 整窗忽略鼠标事件由主进程 setIgnoreMouseEvents(forward:true) 控制，正文/首页点击直达下层应用。
+ * 控制条可点击性由主进程在鼠标悬停时临时关闭忽略实现（见 setPassthroughHover），
+ * 此处仅声明正文区穿透，无需为控制条额外声明 pointer-events:auto。 */
 .app.passthrough .reader-slot,
 .app.passthrough .home-view {
   pointer-events: none;
+}
+
+.app.passthrough .control-bar {
+  pointer-events: auto;
 }
 
 /* ---------- 顶部控制条 ---------- */

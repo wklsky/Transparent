@@ -42,9 +42,13 @@ async function parseBookByExt(filePath: string): Promise<OpenFileResult> {
   }
 }
 
-/** 切换鼠标穿透：forward 模式保留渲染层 pointer-events:auto 元素（控制面板）的可点击性 */
+/**
+ * 切换鼠标穿透：开启后整窗忽略鼠标事件并转发给下层应用（forward 模式）。
+ * 控制条可点击性不依赖 CSS，而由 setPassthroughHover 在鼠标悬停时临时关闭忽略来实现。
+ */
 export function setPassthrough(enabled: boolean): void {
   passthrough = enabled
+  hoverHold = false
   targetWindow?.setIgnoreMouseEvents(enabled, { forward: true })
   targetWindow?.webContents.send('window:state-changed', { passthrough, alwaysOnTop } satisfies WindowState)
 }
@@ -58,6 +62,26 @@ export function setAlwaysOnTop(enabled: boolean): void {
 /** 向渲染进程同步一次当前窗口状态（初始化与状态变化时调用） */
 export function broadcastWindowState(): void {
   targetWindow?.webContents.send('window:state-changed', { passthrough, alwaysOnTop } satisfies WindowState)
+}
+
+/**
+ * 临时悬停穿透控制：forward 模式下整窗 setIgnoreMouseEvents(true) 会把控制条点击也转发给下层，
+ * 导致按钮失效。因此鼠标进入控制条时关闭穿透（事件回到本窗），离开后若仍处于穿透模式则恢复。
+ * 仅当 passthrough 开启时 hoverHold 才生效，避免影响正常模式。
+ */
+let hoverHold = false
+export function setPassthroughHover(hovering: boolean): void {
+  if (!passthrough) return
+  if (hovering === hoverHold) return
+  const win = targetWindow
+  // 窗口未就绪时只记录意图，避免 hoverHold 与真实忽略状态错位导致后续悬停失灵
+  if (!win) {
+    hoverHold = hovering
+    return
+  }
+  hoverHold = hovering
+  // 悬停时关闭整窗忽略，离开且仍开启穿透时恢复忽略
+  win.setIgnoreMouseEvents(hovering ? false : true, { forward: true })
 }
 
 /** 注册全部 IPC 通道（窗口创建后调用一次） */
@@ -117,6 +141,11 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   ipcMain.on('reader:quit', () => {
     if (passthrough) setPassthrough(false)
     app.quit()
+  })
+
+  // 控制条悬停临时穿透开关：鼠标进入控制条时恢复本窗可交互，离开后归位穿透状态
+  ipcMain.on('reader:passthrough-hover', (_event, hovering: unknown) => {
+    setPassthroughHover(Boolean(hovering))
   })
 
   // 无边框窗口无法从系统边缘缩放，由渲染层 resize 手柄实时通知主进程改变尺寸。

@@ -10,7 +10,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import iconv from 'iconv-lite'
 import JSZip from 'jszip'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -44,7 +43,8 @@ const gbkTxt = `古风记事
 烛火摇曳，书页上浮现一行行小字。
 书生看得入神，竟忘了更漏已深。
 `
-writeFileSync(join(outDir, 'sample-gbk.txt'), iconv.encode(gbkTxt, 'gbk'))
+// 生成 GBK 样本：Node 的 Buffer 编码 API（基于 ICU）支持 gbk，避免使用 iconv-lite 依赖
+writeFileSync(join(outDir, 'sample-gbk.txt'), Buffer.from(gbkTxt, 'gbk'))
 
 // ---- 最小 EPUB2（含 NCX TOC）----
 const epub = new JSZip()

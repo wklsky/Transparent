@@ -27,8 +27,6 @@
     "src/main/**/*.ts",
     "src/preload/**/*.ts",
     "src/preload/**/*.d.ts",
-    "src/renderer/src/**/*.ts",
-    "src/renderer/src/**/*.vue",
     "src/shared/**/*.ts"
   ]
 }

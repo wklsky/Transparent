@@ -9,7 +9,6 @@
 
 import { readFile } from 'node:fs/promises'
 import JSZip from 'jszip'
-import iconv from 'iconv-lite'
 import * as htmlparser2 from 'htmlparser2'
 import type { Chapter, ParsedBook, Paragraph, ParagraphType } from '@shared/types'
 
@@ -54,10 +53,12 @@ async function readZipEntry(zip: JSZip, path: string): Promise<string> {
   const encMatch = /<\?xml[^>]*encoding=["']([^"']+)["']/.exec(buf.subarray(0, 512).toString('latin1'))
   const enc = encMatch ? encMatch[1].toLowerCase() : 'utf-8'
   try {
-    return iconv.decode(buf, enc)
+    // EPUB 内部 XHTML 可能声明 gbk/gb2312 等非 UTF-8 编码，统一用 Node 内置 TextDecoder 解码，
+    // 避免额外引入 iconv-lite 依赖；未知编码名会抛错，进入 catch 回退 UTF-8
+    return new TextDecoder(enc).decode(buf)
   } catch {
     // 编码名不识别时回退 UTF-8，避免解析直接失败
-    return iconv.decode(buf, 'utf-8')
+    return new TextDecoder('utf-8').decode(buf)
   }
 }
 

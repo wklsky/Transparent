@@ -7,7 +7,7 @@
  * @Description: 渲染进程侧的 window.readerAPI 类型声明（由 preload/index.ts 的 ReaderApi 推导）
  */
 
-import type { ReaderApi } from './index'
+import type { ReaderApi } from '@shared/types'
 
 declare global {
   interface Window {

@@ -9,8 +9,17 @@
 
 /// <reference types="vite/client" />
 
+// 纯全局声明文件（无顶层 import，避免 isolatedModules 下变成 module 后丢失 *.vue 全局增强）。
+// 通过内联 import() 类型查询引用 @shared/types，无需顶层 import 即可拿到 ReaderApi 类型。
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
   const component: DefineComponent<object, object, unknown>
   export default component
+}
+
+declare global {
+  interface Window {
+    /** 由 preload 经 contextBridge 注入的阅读器 API，详见 @shared/types 的 ReaderApi */
+    readerAPI: import('@shared/types').ReaderApi
+  }
 }

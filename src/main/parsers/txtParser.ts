@@ -7,7 +7,7 @@
  * @Description: TXT 解析：BOM/启发式编码检测 + 章节标题正则拆分，输出统一段落模型
  */
 
-import iconv from 'iconv-lite'
+// 编码解码统一使用 Node 内置 TextDecoder（含 gbk/gb2312，依赖 ICU），移除 iconv-lite 依赖
 import { readFile } from 'node:fs/promises'
 import type { Chapter, ParsedBook, Paragraph, ParagraphType } from '@shared/types'
 
@@ -47,7 +47,8 @@ export function detectEncoding(buffer: Buffer): EncodingResult {
 /** 将原始字节按探测出的编码解码为字符串（剥离 BOM） */
 export function decodeBuffer(buffer: Buffer, codec: EncodingResult['codec']): string {
   if (codec === 'gbk') {
-    return iconv.decode(buffer, 'gbk')
+    // Node 内置 TextDecoder 的 gbk 解码走 ICU，非法字节默认替换为 U+FFFD，避免乱码崩溃
+    return new TextDecoder('gbk').decode(buffer)
   }
   if (codec === 'utf-16be') {
     // TextDecoder 不支持 utf-16be，逐对字节交换后按 le 解码

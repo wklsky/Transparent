@@ -91,3 +91,37 @@ export interface PersistedData {
   /** 最近打开的文件路径列表（新→旧） */
   recentFiles: string[]
 }
+
+/**
+ * 渲染进程通过 window.readerAPI 可调用的全部预加载接口。
+ * 定义为纯类型（不依赖 electron 命名空间），便于 web 项目在不引入 electron 类型的前提下引用。
+ * 取消订阅函数由事件类方法返回，组件在 onUnmounted 中调用以清理监听器，防止内存泄漏。
+ */
+export interface ReaderApi {
+  /** 打开文件对话框并解析所选电子书 */
+  openFile: () => Promise<OpenFileResult>
+  /** 直接按路径解析电子书（拖放文件时用） */
+  openFilePath: (filePath: string) => Promise<OpenFileResult>
+  /** 切换鼠标穿透（整窗忽略鼠标并转发下层），返回切换后的状态 */
+  togglePassthrough: () => Promise<boolean>
+  /** 切换窗口置顶，返回切换后的状态 */
+  toggleAlwaysOnTop: () => Promise<boolean>
+  /** 设置整体窗口不透明度 0.2~1 */
+  setWindowOpacity: (opacity: number) => void
+  /** 退出整个应用（等价于全局快捷键 Ctrl+Shift+Q） */
+  quitApp: () => void
+  /** 通知主进程按增量缩放窗口（无边框窗口自绘手柄用） */
+  resizeWindow: (deltaW: number, deltaH: number) => void
+  /** 读取当前窗口状态（穿透/置顶） */
+  getWindowState: () => Promise<WindowState>
+  /** 拖放文件时获取真实磁盘路径（Electron 30+ 移除了 File.path） */
+  getPathForFile: (file: File) => string
+  /** 订阅窗口状态变化（穿透/置顶切换后主进程推送），返回取消订阅函数 */
+  onWindowStateChange: (cb: (state: WindowState) => void) => () => void
+  /** 订阅菜单打开文件请求（全局快捷键触发），返回取消订阅函数 */
+  onOpenFileRequest: (cb: () => void) => () => void
+  /** 订阅背景透明度增减请求（全局快捷键触发），返回取消订阅函数 */
+  onBgAlphaDelta: (cb: (delta: number) => void) => () => void
+  /** 鼠标进入/离开控制条时临时开关整窗穿透，保证按钮在穿透模式下仍可点击 */
+  setPassthroughHover: (hovering: boolean) => void
+}

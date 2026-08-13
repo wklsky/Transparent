@@ -14,6 +14,7 @@
 - 控制条「退出」按钮与全局快捷键 `Ctrl+Shift+Q` 均可退出程序
 - 字号、行高、字体、文字颜色、背景色、窗口不透明度、文字阴影均可配置
 - 最近打开文件、拖拽打开
+- 轻量化：无 Pinia 等额外状态库，编码解码走 Node 内置 API，运行时依赖仅 Vue / JSZip / htmlparser2
 
 ## 环境要求
 
@@ -156,7 +157,7 @@ node --experimental-strip-types tests/parser.test.mjs
 | 桌面容器 | Electron |
 | 渲染框架 | Vue 3 `<script setup>` + TypeScript 严格模式 |
 | 构建 | electron-vite + Vite |
-| 状态管理 | Pinia |
+| 状态管理 | Vue `reactive` 单例（轻量，无需 Pinia） |
 | EPUB 解析 | JSZip + htmlparser2 |
 | 编码检测 | iconv-lite |
 

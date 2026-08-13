@@ -52,8 +52,8 @@ onUnmounted(() => {
     @dragleave="dragover = false"
     @drop.prevent="onDrop"
   >
-    <div class="home-logo">透明阅读器</div>
-    <p class="home-sub">支持 TXT / EPUB · 背景可完全透明 · 文字自适应窗口换行</p>
+    <div class="home-logo">含光</div>
+    <!-- <p class="home-sub">支持 TXT / EPUB</p> -->
     <button class="home-btn" :disabled="store.loading" @click="store.openFile()">
       {{ store.loading ? '打开中…' : '打开电子书' }}
     </button>

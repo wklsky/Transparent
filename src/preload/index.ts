@@ -8,13 +8,13 @@
  */
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { OpenFileResult, WindowState } from '@shared/types'
+import type { OpenFileResult, WindowState, ReaderApi } from '@shared/types'
 
 /**
- * 渲染进程可用的阅读器 API。
+ * 渲染进程可用的阅读器 API（结构见 @shared/types 的 ReaderApi）。
  * 事件类方法返回取消订阅函数，便于组件 onUnmounted 清理，避免监听器泄漏。
  */
-const readerApi = {
+const readerApi: ReaderApi = {
   openFile: (): Promise<OpenFileResult> => ipcRenderer.invoke('reader:open-file'),
   openFilePath: (filePath: string): Promise<OpenFileResult> =>
     ipcRenderer.invoke('reader:open-path', filePath),
@@ -23,6 +23,8 @@ const readerApi = {
   setWindowOpacity: (opacity: number): void => ipcRenderer.send('reader:set-window-opacity', opacity),
   /** 退出整个应用（等价于全局快捷键 Ctrl+Shift+Q） */
   quitApp: (): void => ipcRenderer.send('reader:quit'),
+  /** 鼠标进入/离开控制条时临时开关整窗穿透，保证按钮在穿透模式下仍可点击 */
+  setPassthroughHover: (hovering: boolean): void => ipcRenderer.send('reader:passthrough-hover', hovering),
   /** 通知主进程按增量缩放窗口（无边框窗口自绘手柄用） */
   resizeWindow: (deltaW: number, deltaH: number): void => ipcRenderer.send('reader:resize', deltaW, deltaH),
   getWindowState: (): Promise<WindowState> => ipcRenderer.invoke('reader:get-window-state'),
@@ -46,5 +48,3 @@ const readerApi = {
 }
 
 contextBridge.exposeInMainWorld('readerAPI', readerApi)
-
-export type ReaderApi = typeof readerApi
