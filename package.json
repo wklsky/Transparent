@@ -32,7 +32,7 @@
   },
   "build": {
     "appId": "com.wj.transparent-reader",
-    "productName": "透明阅读器",
+    "productName": "含光浮窗",
     "copyright": "Copyright © 2026 wj",
     "directories": {
       "output": "dist",
@@ -41,6 +41,7 @@
     "files": [
       "out/**/*"
     ],
+    "icon": "build/icon.png",
     "win": {
       "target": [
         {
