@@ -1,0 +1,64 @@
+{
+  "name": "transparent-reader",
+  "version": "1.0.0",
+  "description": "TXT/EPUB 透明悬浮阅读器：背景透明度可调、完全透明仅显示文字、自动换行",
+  "main": "out/main/index.js",
+  "author": "wj <3363891051@qq.com>",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web"
+  },
+  "dependencies": {
+    "htmlparser2": "^12.0.0",
+    "iconv-lite": "^0.7.3",
+    "jszip": "^3.10.1",
+    "pinia": "^4.0.3",
+    "vue": "^3.5.41"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "^5.9.0",
+    "vue-tsc": "^3.3.9"
+  },
+  "build": {
+    "appId": "com.wj.transparent-reader",
+    "productName": "透明阅读器",
+    "copyright": "Copyright © 2026 wj",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": "x64"
+        }
+      ],
+      "artifactName": "${productName}-${version}-setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  }
+}

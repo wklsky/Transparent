@@ -1,0 +1,8 @@
+node_modules/
+out/
+dist/
+*.log
+scripts/smoke.png
+tests/samples/
+.DS_Store
+Thumbs.db

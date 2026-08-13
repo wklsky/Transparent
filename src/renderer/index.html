@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>透明阅读器</title>
+    <!--
+     * @Author: wj 3363891051@qq.com
+     * @Date: 2026-08-13 15:00
+     * @LastEditors: wj 3363891051@qq.com
+     * @LastEditTime: 2026-08-13 15:00
+     * @FilePath: src/renderer/index.html
+     * @Description: 渲染进程 HTML 入口，CSP 允许内联样式（Vue 动态样式）与本地开发 HMR
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: http://localhost:*; font-src 'self' data:"
+    />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
