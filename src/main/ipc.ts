@@ -12,11 +12,27 @@ import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { parseTxtFile } from './parsers/txtParser'
 import { parseEpubFile } from './parsers/epubParser'
 import { setAlwaysOnTopRef, setPassthroughRef } from './index'
-import type { OpenFileResult, WindowState } from '@shared/types'
+import type { BookMeta, GetChapterResult, OpenFileResult, ParsedBook, WindowState } from '@shared/types'
 
 let targetWindow: BrowserWindow | null = null
 let passthrough = false
 let alwaysOnTop = true
+
+// 业务背景：按需加载场景下，主进程解析后会持有完整 ParsedBook（含全部正文），
+// 但只把"标题列表"BookMeta 回传渲染进程；渲染进程切章时再通过 reader:get-chapter 取正文。
+// 该引用随打开/关闭/退出而替换或清空，避免旧书对象常驻导致内存泄漏。
+let currentBook: ParsedBook | null = null
+
+/** 从完整书籍中剥离出仅含章节标题的元信息（不携带正文段落） */
+function toBookMeta(book: ParsedBook): BookMeta {
+  return {
+    format: book.format,
+    title: book.title,
+    author: book.author,
+    filePath: book.filePath,
+    chapters: book.chapters.map((ch) => ({ title: ch.title }))
+  }
+}
 
 /** 按扩展名分发到对应解析器，失败时返回用户可读错误信息 */
 async function parseBookByExt(filePath: string): Promise<OpenFileResult> {
@@ -31,7 +47,9 @@ async function parseBookByExt(filePath: string): Promise<OpenFileResult> {
     if (!book) {
       return { ok: false, book: null, error: `不支持的文件类型：${ext || '未知'}（仅支持 .txt / .epub）` }
     }
-    return { ok: true, book }
+    currentBook = book
+    // 按需加载：仅回传元信息（章节标题列表），正文留待渲染进程按需索取
+    return { ok: true, book: toBookMeta(book) }
   } catch (error) {
     console.error('[ipc] 解析失败:', error)
     return {
@@ -132,6 +150,15 @@ export function registerIpcHandlers(win: BrowserWindow): void {
 
   ipcMain.handle('reader:get-window-state', (): WindowState => ({ passthrough, alwaysOnTop }))
 
+  // 按需加载：渲染进程切章时按 index 取回该章正文，避免整本大书一次性跨进程克隆
+  ipcMain.handle('reader:get-chapter', (_event, index: unknown): GetChapterResult => {
+    const idx = Number(index)
+    if (!currentBook || !Number.isInteger(idx) || idx < 0 || idx >= currentBook.chapters.length) {
+      return { index: Number.isInteger(idx) ? idx : -1, paragraphs: [] }
+    }
+    return { index: idx, paragraphs: currentBook.chapters[idx].paragraphs }
+  })
+
   ipcMain.handle('reader:get-file-title', (_event, filePath: unknown): string => {
     if (typeof filePath !== 'string') return ''
     return basename(filePath)
@@ -140,6 +167,8 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   // 退出应用：先关闭鼠标穿透，确保 app.quit 触发的 beforeunload 能正常持久化阅读进度
   ipcMain.on('reader:quit', () => {
     if (passthrough) setPassthrough(false)
+    // 释放主进程持有的整本书引用，避免退出前残留对象
+    currentBook = null
     app.quit()
   })
 

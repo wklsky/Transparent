@@ -20,16 +20,19 @@ let rafId = 0
 
 const chapter = computed(() => store.chapter)
 
+/** 当前章节标题来自 BookMeta（按需加载下正文不含标题，标题由目录元信息提供） */
+const chapterTitle = computed(() => store.book?.chapters[store.chapterIndex]?.title ?? '')
+
 /**
  * 过滤与章节标题完全重复的首段 heading：
- * TXT 的标题行与 EPUB docTitle 均已写入 chapter.title，正文首段若相同则跳过，避免标题双显。
+ * TXT 的标题行与 EPUB docTitle 均已写入 chapterTitle，正文首段若相同则跳过，避免标题双显。
  */
 const displayParagraphs = computed(() => {
-  const list = chapter.value?.paragraphs ?? []
+  const list = chapter.value ?? []
   if (
     list.length > 0 &&
     list[0].type === 'heading' &&
-    list[0].text.trim() === chapter.value?.title
+    list[0].text.trim() === chapterTitle.value
   ) {
     return list.slice(1)
   }
@@ -90,13 +93,14 @@ onUnmounted(() => {
 <template>
   <div class="reader-scroll" ref="scrollEl" @scroll="onScroll">
     <article class="chapter" :style="chapterStyle">
-      <h2 class="chapter-title">{{ chapter?.title }}</h2>
+      <h2 class="chapter-title">{{ chapterTitle }}</h2>
+      <p v-if="store.chapterLoading" class="chapter-loading">章节加载中…</p>
       <template v-for="(para, index) in displayParagraphs" :key="index">
         <h3 v-if="para.type === 'heading'" class="para-heading">{{ para.text }}</h3>
         <p v-else-if="para.type === 'text'" class="para">{{ para.text }}</p>
         <div v-else class="para-gap" />
       </template>
-      <p class="chapter-end">— 本章完 —</p>
+      <p v-if="!store.chapterLoading && displayParagraphs.length > 0" class="chapter-end">— 本章完 —</p>
     </article>
   </div>
 </template>

@@ -10,7 +10,7 @@
  */
 
 import { reactive, computed } from 'vue'
-import type { OpenFileResult, ParsedBook } from '@shared/types'
+import type { BookMeta, ChapterMeta, OpenFileResult, Paragraph } from '@shared/types'
 import { addRecentFile, loadProgress, removeRecentFile, saveProgress } from '../composables/useSettings'
 
 /**
@@ -19,13 +19,19 @@ import { addRecentFile, loadProgress, removeRecentFile, saveProgress } from '../
  * Object.assign 注入的方法/computed 在运行时存在、但 TypeScript 不可见，导致组件调用全部类型报错。
  */
 interface ReaderStore {
-  book: ParsedBook | null
+  book: BookMeta | null
+  /** 当前章节下标 */
   chapterIndex: number
+  /** 章节内滚动比例 0~1，切章/恢复进度时使用 */
   scrollRatio: number
+  /** 打开文件过程中的加载态 */
   loading: boolean
+  /** 章节正文异步加载中的加载态 */
+  chapterLoading: boolean
+  /** 用户可读的错误信息，非空时展示在界面上 */
   errorMsg: string
-  /** 当前章节对象（computed 自动解包） */
-  chapter: ParsedBook['chapters'][number] | null
+  /** 当前章节正文段落（按需从主进程加载，非整本常驻） */
+  chapter: Paragraph[] | null
   /** 当前书籍章节总数 */
   totalChapters: number
   /** 是否可向前翻章 */
@@ -37,6 +43,8 @@ interface ReaderStore {
   nextChapter: () => void
   prevChapter: () => void
   gotoChapter: (index: number) => void
+  /** 按章节下标向主进程索取正文并写入 store.chapter（带加载态与重复请求去抖） */
+  loadChapter: (index: number) => Promise<void>
   setScrollRatio: (ratio: number) => void
   persistProgress: () => void
   consumePendingRatio: () => number
@@ -45,22 +53,20 @@ interface ReaderStore {
 
 /** 阅读状态单例：整生命周期只创建一个 reactive 对象，跨组件共享 */
 const state = reactive({
-  /** 当前加载的书籍，null 表示未打开任何书 */
-  book: null as ParsedBook | null,
-  /** 当前章节下标 */
+  /** 当前加载的书籍元信息（仅含标题列表，不含正文），null 表示未打开任何书 */
+  book: null as BookMeta | null,
   chapterIndex: 0,
-  /** 章节内滚动比例 0~1，切章/恢复进度时使用 */
   scrollRatio: 0,
-  /** 打开文件过程中的加载态 */
   loading: false,
-  /** 用户可读的错误信息，非空时展示在界面上 */
+  chapterLoading: false,
   errorMsg: ''
 }) as ReaderStore
 
 /** 章节切换时等待目标章节渲染完成（非响应式临时量，不放进 reactive） */
 let pendingScrollRatio = 0
+/** 最近一次发起的章节加载请求序号，用于丢弃过期响应（快速翻章时避免正文错乱） */
+let chapterLoadSeq = 0
 
-const chapter = computed(() => state.book?.chapters[state.chapterIndex] ?? null)
 const totalChapters = computed(() => state.book?.chapters.length ?? 0)
 const canPrev = computed(() => state.chapterIndex > 0)
 const canNext = computed(
@@ -81,7 +87,7 @@ async function applyOpenResult(result: OpenFileResult): Promise<boolean> {
     state.errorMsg = result.error ?? '打开文件失败'
     return false
   }
-  const parsed = result.book as ParsedBook
+  const parsed = result.book as BookMeta
   state.book = parsed
   state.chapterIndex = 0
   state.scrollRatio = 0
@@ -93,6 +99,8 @@ async function applyOpenResult(result: OpenFileResult): Promise<boolean> {
     state.chapterIndex = progress.chapterIndex
     pendingScrollRatio = progress.scrollRatio
   }
+  // 按需加载：打开即拉取当前章节正文（首章或恢复进度所在章）
+  await loadChapter(state.chapterIndex)
   return true
 }
 
@@ -141,12 +149,36 @@ function persistProgress(): void {
   }
 }
 
+/**
+ * 按需加载指定章节正文：向主进程索取该章段落并写入 store.chapter。
+ * 关键：用递增序列号 chapterLoadSeq 丢弃过期响应，避免快速翻章时旧响应覆盖新章节正文。
+ * 越界下标直接清空当前章，保持与切章边界一致的行为。
+ */
+async function loadChapter(index: number): Promise<void> {
+  if (!state.book) return
+  const seq = ++chapterLoadSeq
+  const clamped = clampChapter(index)
+  state.chapterLoading = true
+  try {
+    const res = await window.readerAPI.getChapter(clamped)
+    // 若期间又发起了更新的加载请求，丢弃本次（已过期）的响应
+    if (seq !== chapterLoadSeq) return
+    state.chapter = res.paragraphs
+  } catch (error) {
+    console.error('[reader] 加载章节异常:', error)
+    if (seq === chapterLoadSeq) state.chapter = null
+  } finally {
+    if (seq === chapterLoadSeq) state.chapterLoading = false
+  }
+}
+
 function nextChapter(): void {
   if (!canNext.value) return
   persistProgress()
   state.chapterIndex = clampChapter(state.chapterIndex + 1)
   state.scrollRatio = 0
   pendingScrollRatio = 0
+  void loadChapter(state.chapterIndex)
 }
 
 function prevChapter(): void {
@@ -155,6 +187,7 @@ function prevChapter(): void {
   state.chapterIndex = clampChapter(state.chapterIndex - 1)
   state.scrollRatio = 0
   pendingScrollRatio = 0
+  void loadChapter(state.chapterIndex)
 }
 
 function gotoChapter(index: number): void {
@@ -164,6 +197,7 @@ function gotoChapter(index: number): void {
   state.chapterIndex = target
   state.scrollRatio = 0
   pendingScrollRatio = 0
+  void loadChapter(target)
 }
 
 function setScrollRatio(ratio: number): void {
@@ -174,6 +208,8 @@ function setScrollRatio(ratio: number): void {
 function closeBook(): void {
   persistProgress()
   state.book = null
+  state.chapter = null
+  state.chapterLoading = false
   state.chapterIndex = 0
   state.scrollRatio = 0
   state.errorMsg = ''
@@ -197,6 +233,7 @@ Object.assign(state, {
   nextChapter,
   prevChapter,
   gotoChapter,
+  loadChapter,
   setScrollRatio,
   persistProgress,
   consumePendingRatio,

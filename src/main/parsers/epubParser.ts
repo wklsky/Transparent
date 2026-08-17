@@ -296,10 +296,13 @@ export async function parseEpubFile(filePath: string): Promise<ParsedBook> {
   }
 
   const chapters: Chapter[] = []
-  for (const item of opf.spine) {
-    const html = await readZipEntry(zip, item.path)
-    const { paragraphs, docTitle } = extractDocument(html)
+  // 业务背景：spine 各文档之间互无依赖，串行 await 会让大书的 zip 读取被拉长。
+  // 改为并行读取全部文档后再顺序抽取，可显著缩短打开耗时，抽取逻辑与结果保持不变。
+  const spineDocs = await Promise.all(opf.spine.map((item) => readZipEntry(zip, item.path)))
+  for (let i = 0; i < opf.spine.length; i++) {
+    const { paragraphs, docTitle } = extractDocument(spineDocs[i])
     if (paragraphs.length === 0) continue
+    const item = opf.spine[i]
     const tocMatch = toc.find((t) => t.src === item.path)
     const fileName = item.path.split('/').pop()?.replace(/\.x?html?$/i, '') ?? '未命名'
     chapters.push({

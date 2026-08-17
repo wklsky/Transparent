@@ -8,7 +8,7 @@
  */
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { OpenFileResult, WindowState, ReaderApi } from '@shared/types'
+import type { GetChapterResult, OpenFileResult, WindowState, ReaderApi } from '@shared/types'
 
 /**
  * 渲染进程可用的阅读器 API（结构见 @shared/types 的 ReaderApi）。
@@ -28,6 +28,8 @@ const readerApi: ReaderApi = {
   /** 通知主进程按增量缩放窗口（无边框窗口自绘手柄用） */
   resizeWindow: (deltaW: number, deltaH: number): void => ipcRenderer.send('reader:resize', deltaW, deltaH),
   getWindowState: (): Promise<WindowState> => ipcRenderer.invoke('reader:get-window-state'),
+  /** 按章节下标从主进程取回该章正文（按需加载） */
+  getChapter: (index: number): Promise<GetChapterResult> => ipcRenderer.invoke('reader:get-chapter', index),
   /** 拖放文件时获取真实磁盘路径（Electron 30+ 移除了 File.path） */
   getPathForFile: (file: File): string => webUtils.getPathForFile(file),
   onWindowStateChange: (cb: (state: WindowState) => void): (() => void) => {

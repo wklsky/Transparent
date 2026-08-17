@@ -102,6 +102,14 @@ body {
   letter-spacing: 0.4em;
 }
 
+/* 按需加载章节时的占位提示（透明阅读场景下同样弱化存在感） */
+.chapter-loading {
+  text-align: center;
+  margin-top: 24px;
+  opacity: 0.4;
+  letter-spacing: 0.2em;
+}
+
 /* ---------- 鼠标穿透模式 ---------- */
 /* 整窗忽略鼠标事件由主进程 setIgnoreMouseEvents(forward:true) 控制，正文/首页点击直达下层应用。
  * 控制条可点击性由主进程在鼠标悬停时临时关闭忽略实现（见 setPassthroughHover），

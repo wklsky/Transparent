@@ -8,8 +8,9 @@
  */
 
 import { join } from 'node:path'
-import { app, BrowserWindow, globalShortcut, shell } from 'electron'
+import { app, BrowserWindow, globalShortcut, screen, shell } from 'electron'
 import { registerIpcHandlers, setPassthrough, setAlwaysOnTop, broadcastWindowState } from './ipc'
+import { loadWindowBounds, saveWindowBounds } from './boundsStore'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -18,15 +19,33 @@ export function getMainWindow(): BrowserWindow | null {
   return mainWindow
 }
 
+// 业务背景：窗口拖动/缩放是高频事件，直接落盘写 JSON 会产生大量 IO。
+// 用定时器合并最近一次变更，最多每 500ms 写一次，兼顾实时性与性能。
+let boundsSaveTimer: NodeJS.Timeout | null = null
+function scheduleSaveBounds(win: BrowserWindow): void {
+  if (boundsSaveTimer) return
+  boundsSaveTimer = setTimeout(() => {
+    boundsSaveTimer = null
+    // macOS 最小化/还原过程中 bounds 会瞬变为 {0,0}，此时跳过保存以免覆盖正常位置
+    if (win.isMinimized() || !win.isVisible()) return
+    const b = win.getBounds()
+    if (b.x === 0 && b.y === 0 && b.width === 0) return
+    saveWindowBounds(b)
+  }, 500)
+}
+
 /**
  * 创建阅读器主窗口。
  * 关键：transparent + frame:false + backgroundColor 全透明 + hasShadow:false，
  * 才能让渲染层背景完全透明时"只显示文字"；Windows 下关闭阴影可减少透明窗口毛边。
  */
 function createWindow(): void {
+  // 恢复上次关闭前的窗口位置与尺寸；首次启动返回 null 则沿用默认尺寸并由系统定位
+  const saved = loadWindowBounds()
   const win = new BrowserWindow({
-    width: 900,
-    height: 640,
+    ...(saved ? { x: saved.x, y: saved.y } : {}),
+    width: saved?.width ?? 900,
+    height: saved?.height ?? 640,
     minWidth: 360,
     minHeight: 240,
     show: false,
@@ -43,8 +62,17 @@ function createWindow(): void {
       nodeIntegration: false
     }
   })
+  // 业务背景：外接显示器拔掉或分辨率变更后，上次保存的坐标可能落到所有显示器之外，
+  // 导致窗口不可见。恢复后做可用性兜底，越界则重新居中到主显示器。
+  if (saved && !screen.getDisplayNearestPoint({ x: saved.x, y: saved.y })) {
+    win.center()
+  }
   mainWindow = win
   registerIpcHandlers(win)
+
+  // 位置/尺寸变化即记录，下次启动恢复
+  win.on('move', () => scheduleSaveBounds(win))
+  win.on('resize', () => scheduleSaveBounds(win))
 
   win.once('ready-to-show', () => win.show())
 

@@ -25,7 +25,7 @@ export interface Chapter {
 /** 书籍格式 */
 export type BookFormat = 'txt' | 'epub'
 
-/** 解析完成后的完整书籍对象 */
+/** 解析完成后的完整书籍对象（主进程持有，不直接跨进程传输正文） */
 export interface ParsedBook {
   /** 书籍格式，渲染进程据此决定文案与细节 */
   format: BookFormat
@@ -39,11 +39,39 @@ export interface ParsedBook {
   chapters: Chapter[]
 }
 
-/** 打开文件对话框取消时的返回 */
+/**
+ * 章节元信息（按需加载用）：仅含目录展示所需的标题，不含正文段落。
+ * 打开书籍时主进程只把该结构回传渲染进程，避免整本大书一次性跨进程克隆。
+ */
+export interface ChapterMeta {
+  title: string
+}
+
+/**
+ * 书籍元信息（按需加载用）：打开时即回传标题列表，正文按章节 index 后取。
+ * 渲染进程凭此渲染目录与定位，正文通过 reader:get-chapter 异步获取。
+ */
+export interface BookMeta {
+  format: BookFormat
+  title: string
+  author: string
+  filePath: string
+  chapters: ChapterMeta[]
+}
+
+/** 按章节下标取正文的返回结构 */
+export interface GetChapterResult {
+  /** 命中的章节下标 */
+  index: number
+  /** 该章节有序段落集合；越界时为空数组 */
+  paragraphs: Paragraph[]
+}
+
+/** 打开文件对话框取消时的返回（book 改为仅含元信息，不含正文） */
 export interface OpenFileResult {
   ok: boolean
   /** 取消或失败时为空 */
-  book: ParsedBook | null
+  book: BookMeta | null
   /** 失败时的用户可读错误信息 */
   error?: string
 }
@@ -114,6 +142,8 @@ export interface ReaderApi {
   resizeWindow: (deltaW: number, deltaH: number) => void
   /** 读取当前窗口状态（穿透/置顶） */
   getWindowState: () => Promise<WindowState>
+  /** 按章节下标从主进程取回该章正文段落（按需加载，避免整本大书一次性跨进程传输） */
+  getChapter: (index: number) => Promise<GetChapterResult>
   /** 拖放文件时获取真实磁盘路径（Electron 30+ 移除了 File.path） */
   getPathForFile: (file: File) => string
   /** 订阅窗口状态变化（穿透/置顶切换后主进程推送），返回取消订阅函数 */
